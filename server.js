@@ -3,7 +3,15 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
 import { TOPICS, INITIAL_CHAT_MESSAGE } from './constants.js';
-import { normalizeTopic, buildSystemInstruction, formatHistory } from './utils.js';
+import {
+  normalizeTopic,
+  buildSystemInstruction,
+  formatHistory,
+  isSupportMessage,
+  findProduct,
+  isTechnicalSheetRequest,
+  formatTechnicalSheet,
+} from './utils.js';
 import { generalLimiter, chatLimiter, initialMessageLimiter } from './middleware.js';
 import { setupSwagger } from './swagger.js';
 
@@ -91,10 +99,27 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
       });
     }
 
+    if (!isSupportMessage(message)) {
+      return res.json({
+        reply: 'Não consigo ajudar com esse assunto. Você precisa de ajuda com algum dos tópicos do atendimento?',
+        topic: normalizedTopic,
+      });
+    }
+
+    if (isTechnicalSheetRequest(message)) {
+      const product = findProduct(message);
+      if (product) {
+        return res.json({
+          reply: formatTechnicalSheet(product),
+          topic: normalizedTopic,
+        });
+      }
+    }
+
     const formattedHistory = formatHistory(history);
 
     const chat = ai.chats.create({
-      model: 'gemini-3.6-flash',
+      model: 'gemini-3.5-flash',
       config: {
         systemInstruction: buildSystemInstruction(normalizedTopic),
         temperature: 0.7,
